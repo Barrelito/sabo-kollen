@@ -9,8 +9,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body class="bg-light">
-    
-<nav class="navbar fixed-bottom navbar-light bg-white border-top shadow-lg">
+
+    <nav class="navbar fixed-bottom navbar-light bg-white border-top shadow-lg">
         <div class="container-fluid justify-content-around">
             <button class="btn nav-btn" onclick="showTab('rapportTab')">
                 <i class="fas fa-ambulance fa-lg d-block mb-1"></i> Rapportera
@@ -23,7 +23,7 @@
             </button>
         </div>
     </nav>
-    
+
     <div class="container py-4 mb-5" style="max-width: 600px;">
         
         <div id="rapportTab" class="tab-content d-none">
@@ -41,7 +41,7 @@
                             <strong class="d-block text-dark">Viktigt om Avvikelser</strong>
                             <p class="small mb-0 text-muted">
                                 Denna app ersätter <strong>inte</strong> ordinarie avvikelsehantering. 
-                                Vid misstanke om vårdskada, felbehandling eller risk för patient ska avvikelse alltid skrivas i det vanliga systemet (Händelsevis). 
+                                Vid misstanke om vårdskada, felbehandling eller risk för patient ska avvikelse alltid skrivas i det vanliga systemet. 
                                 Denna app är endast till för lokal statistik och samverkan.
                             </p>
                         </div>
@@ -92,14 +92,14 @@
                             <label class="form-label fw-bold text-danger">Vad saknades?</label>
                             <div id="bristContainer">
                                 </div>
+                        </div>
 
-                            <div id="successSection" class="mb-4 p-3 bg-success bg-opacity-10 border border-success rounded d-none">
+                        <div id="successSection" class="mb-4 p-3 bg-success bg-opacity-10 border border-success rounded d-none">
                             <label class="form-label fw-bold text-success">
                                 <i class="fas fa-check-circle me-2"></i>Kontrollera innehållet:
                             </label>
                             <ul id="successList" class="list-group list-group-flush bg-transparent small">
                                 </ul>
-                        </div>
                         </div>
 
                         <div class="mb-4">
@@ -213,9 +213,7 @@
                                 <small class="text-muted text-uppercase">Helt kompletta</small>
                             </div>
                         </div>
-                        
                         <hr>
-                        
                         <h6 class="fw-bold text-danger mb-2">Vanligaste bristerna:</h6>
                         <ul id="statBristerList" class="list-group list-group-flush small">
                             <li class="list-group-item text-muted">Laddar data...</li>
@@ -240,13 +238,7 @@
         </div>
 
     </div>
-    
-    
 
-
-
-
-    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
 </body>
