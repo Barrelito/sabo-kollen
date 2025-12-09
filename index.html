@@ -9,13 +9,13 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body class="bg-light">
-
-    <nav class="navbar fixed-bottom navbar-light bg-white border-top shadow-lg">
+    
+<nav class="navbar fixed-bottom navbar-light bg-white border-top shadow-lg">
         <div class="container-fluid justify-content-around">
-            <button class="btn nav-btn active" onclick="showTab('rapportTab')">
+            <button class="btn nav-btn" onclick="showTab('rapportTab')">
                 <i class="fas fa-ambulance fa-lg d-block mb-1"></i> Rapportera
             </button>
-            <button class="btn nav-btn" onclick="showTab('infoTab')">
+            <button class="btn nav-btn active" onclick="showTab('infoTab')">
                 <i class="fas fa-info-circle fa-lg d-block mb-1"></i> Info & Stöd
             </button>
             <button class="btn nav-btn" onclick="showTab('adminTab')">
@@ -23,10 +23,10 @@
             </button>
         </div>
     </nav>
-
+    
     <div class="container py-4 mb-5" style="max-width: 600px;">
         
-        <div id="rapportTab" class="tab-content">
+        <div id="rapportTab" class="tab-content d-none">
             <div class="text-center mb-4">
                 <h1 class="h3 fw-bold text-primary">🚑 SÄBO-kollen</h1>
                 <p class="text-muted">Ny rapport</p>
@@ -34,19 +34,20 @@
 
             <div class="card shadow-sm border-0 rounded-3">
                 <div class="card-body p-4">
+                    
                     <div class="alert alert-warning border-warning d-flex align-items-start mb-4">
                         <i class="fas fa-exclamation-triangle text-warning me-3 mt-1 fa-lg"></i>
                         <div>
                             <strong class="d-block text-dark">Viktigt om Avvikelser</strong>
                             <p class="small mb-0 text-muted">
                                 Denna app ersätter <strong>inte</strong> ordinarie avvikelsehantering. 
-                                Vid misstanke om vårdskada, felbehandling eller risk för patient ska avvikelse alltid skrivas i det vanliga systemet (Händelsevis). 
+                                Vid misstanke om vårdskada, felbehandling eller risk för patient ska avvikelse alltid skrivas i det vanliga systemet (Synergi etc). 
                                 Denna app är endast till för lokal statistik och samverkan.
                             </p>
                         </div>
                     </div>
+
                     <form id="reportForm">
-                        
                         <div class="mb-4">
                             <label class="form-label fw-bold">Vilket boende?</label>
                             <select class="form-select form-select-lg" id="boende" required>
@@ -104,10 +105,19 @@
             </div>
         </div>
 
-        <div id="infoTab" class="tab-content d-none">
+        <div id="infoTab" class="tab-content">
             <div class="text-center mb-4">
                 <h2 class="h3 fw-bold text-info">ℹ️ Vård på plats</h2>
                 <p class="text-muted">Riktlinjer & Kontakt</p>
+            </div>
+
+            <div class="alert alert-primary shadow-sm d-flex align-items-center mb-4" role="alert" onclick="showTab('rapportTab')" style="cursor:pointer;">
+                <i class="fas fa-clipboard-check fa-2x me-3 text-primary"></i>
+                <div>
+                    <strong class="d-block">Hittade du brister?</strong>
+                    <span class="small">Klicka här för att rapportera saknat innehåll i Röda Mappen eller andra avvikelser.</span>
+                </div>
+                <i class="fas fa-chevron-right ms-auto text-muted"></i>
             </div>
 
             <div class="card shadow-sm border-0 mb-3">
@@ -205,7 +215,6 @@
                     </div>
                 </div>
 
-               
                 <div class="card mb-3">
                     <div class="card-header fw-bold">Hantera Boenden</div>
                     <div class="card-body">
@@ -217,12 +226,19 @@
                         </div>
                     </div>
                 </div>
-                                            
+                
                 <button onclick="logoutAdmin()" class="btn btn-outline-secondary w-100">Logga ut</button>
             </div>
         </div>
 
     </div>
+    
+    
+
+
+
+
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
 </body>
