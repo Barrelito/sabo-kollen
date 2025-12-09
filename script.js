@@ -1,6 +1,6 @@
 // --- KONFIGURATION ---
-const SUPABASE_URL = 'DIN_SUPABASE_URL_HÄR';
-const SUPABASE_KEY = 'DIN_ANON_KEY_HÄR';
+const SUPABASE_URL = 'https://seeahrjwakvyinwmndwa.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlZWFocmp3YWt2eWlud21uZHdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MjUwOTcsImV4cCI6MjA4MDUwMTA5N30.xqMWlFIaOdqqKpGh_SFAmaT0rTEE7oy0muxFauW8SiY';
 
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
