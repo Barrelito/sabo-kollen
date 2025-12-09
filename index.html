@@ -167,12 +167,39 @@
             </div>
 
             <div id="adminPanel" class="d-none">
+                
+                <div class="card mb-4 border-primary">
+                    <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
+                        <span>📊 Statistik (Realtid)</span>
+                        <button onclick="fetchStatistics()" class="btn btn-sm btn-light text-primary fw-bold">Uppdatera</button>
+                    </div>
+                    <div class="card-body bg-white">
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <h3 class="display-6 fw-bold text-primary" id="statTotal">0</h3>
+                                <small class="text-muted text-uppercase">Rapporter</small>
+                            </div>
+                            <div class="col-6">
+                                <h3 class="display-6 fw-bold text-success" id="statKomplett">0%</h3>
+                                <small class="text-muted text-uppercase">Helt kompletta</small>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <h6 class="fw-bold text-danger mb-2">Vanligaste bristerna:</h6>
+                        <ul id="statBristerList" class="list-group list-group-flush small">
+                            <li class="list-group-item text-muted">Laddar data...</li>
+                        </ul>
+                    </div>
+                </div>
+
                 <div class="alert alert-warning small">
-                    <strong>Obs:</strong> Ändringar du gör här sparas i din webbläsare. I en skarp version kopplas detta till en databas.
+                    <strong>Obs:</strong> Nedanstående lista sparades lokalt i denna webbläsare.
                 </div>
 
                 <div class="card mb-3">
-                    <div class="card-header fw-bold">Hantera Boenden</div>
+                    <div class="card-header fw-bold">Hantera Boenden (Lokal lista)</div>
                     <div class="card-body">
                         <ul id="adminBoendeList" class="list-group mb-3">
                             </ul>
@@ -182,6 +209,9 @@
                         </div>
                     </div>
                 </div>
+                
+                <button onclick="logoutAdmin()" class="btn btn-outline-secondary w-100">Logga ut</button>
+            </div>
                 
                 <button onclick="logoutAdmin()" class="btn btn-outline-secondary w-100">Logga ut</button>
             </div>
