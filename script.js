@@ -1,20 +1,21 @@
 // --- KONFIGURATION ---
-// Byt ut dessa mot dina uppgifter från Supabase Project Settings > API
+
 const SUPABASE_URL = 'https://seeahrjwakvyinwmndwa.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlZWFocmp3YWt2eWlud21uZHdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MjUwOTcsImV4cCI6MjA4MDUwMTA5N30.xqMWlFIaOdqqKpGh_SFAmaT0rTEE7oy0muxFauW8SiY';
 
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Standardbrister (Dessa kan vi ha kvar i koden för enkelhets skull)
+// Standardpunkter (Används nu BÅDE för brister och kom-ihåg-listan)
 const defaultBrister = ["Läkemedelslista", "Medföljandeblankett", "ID-band", "0-HLR Beslut", "Bemötandeplan"];
 
 // --- APP START ---
 document.addEventListener('DOMContentLoaded', function() {
-    renderDropdown(); // Hämta boenden från DB
-    renderBrister();
+    renderDropdown(); 
+    renderBrister();     // Skapar checkboxarna för NEJ
+    renderSuccessList(); // Skapar punktlistan för JA (Nytt!)
     setupEventListeners();
-    fetchStatistics(); // Hämta stats om man är inloggad admin
+    fetchStatistics(); 
 
     // SKICKA RAPPORT
     document.getElementById('reportForm').addEventListener('submit', async function(event) {
@@ -28,9 +29,12 @@ document.addEventListener('DOMContentLoaded', function() {
         const fritext = document.getElementById('fritext').value;
         
         let bristerArr = [];
-        document.querySelectorAll('#bristContainer input:checked').forEach((checkbox) => {
-            bristerArr.push(checkbox.value);
-        });
+        // Vi samlar bara in brister om man faktiskt valt NEJ
+        if (mapp_status === 'NEJ') {
+            document.querySelectorAll('#bristContainer input:checked').forEach((checkbox) => {
+                bristerArr.push(checkbox.value);
+            });
+        }
         const brister = bristerArr.join(", ");
 
         const { error } = await db
@@ -44,54 +48,92 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             alert("✅ Tack! Rapporten är sparad.");
             this.reset();
-            toggleMissing();
+            
+            // Återställ vyerna (dölj båda listorna)
+            document.getElementById('missingSection').classList.add('d-none');
+            document.getElementById('successSection').classList.add('d-none');
         }
     });
 });
 
-// --- BOENDE-LISTA FRÅN DB ---
+// --- UI-FUNKTIONER ---
 
-async function renderDropdown() {
-    const select = document.getElementById('boende');
-    // Behåll "Välj..." och "Laddar..." tills vi fått svar
+// Funktion för att visa/dölja rätt lista (JA vs NEJ)
+function toggleMissing() {
+    const radioNej = document.getElementById('mappNej');
+    const radioJa = document.getElementById('mappJa');
     
-    const { data, error } = await db
-        .from('boenden')
-        .select('*')
-        .order('namn', { ascending: true });
+    const missingSection = document.getElementById('missingSection');
+    const successSection = document.getElementById('successSection');
 
-    if (error) {
-        console.error("Kunde inte hämta boenden:", error);
-        return;
+    // Dölj båda först för att "nollställa"
+    missingSection.classList.add('d-none');
+    successSection.classList.add('d-none');
+
+    if (radioNej && radioNej.checked) {
+        missingSection.classList.remove('d-none'); // Visa röda
+    } 
+    else if (radioJa && radioJa.checked) {
+        successSection.classList.remove('d-none'); // Visa gröna
     }
+}
 
-    // Töm och fyll på
-    select.innerHTML = '<option value="" selected disabled>Välj i listan...</option>';
-    data.forEach(rad => {
-        const opt = document.createElement('option');
-        opt.value = rad.namn;
-        opt.textContent = rad.namn;
-        select.appendChild(opt);
+// Rendera den GRÖNA "Kom-ihåg"-listan (Bara text, inga checkboxar)
+function renderSuccessList() {
+    const list = document.getElementById('successList');
+    list.innerHTML = '';
+    defaultBrister.forEach((punkt) => {
+        const li = document.createElement('li');
+        li.className = "list-group-item bg-transparent border-0 py-1 ps-0 text-dark";
+        // Lägg till en grön bock framför varje
+        li.innerHTML = `<i class="fas fa-check text-success me-2"></i> ${punkt}`;
+        list.appendChild(li);
     });
 }
 
-// --- ADMIN: HANTERA BOENDEN (DB) ---
+// Rendera den RÖDA "Brist"-listan (Checkboxar)
+function renderBrister() {
+    const container = document.getElementById('bristContainer');
+    container.innerHTML = '';
+    defaultBrister.forEach((brist, index) => {
+        const div = document.createElement('div');
+        div.className = "form-check py-2 border-bottom";
+        div.innerHTML = `
+            <input class="form-check-input scale-check" type="checkbox" value="${brist}" id="brist${index}">
+            <label class="form-check-label ms-2" for="brist${index}">${brist}</label>
+        `;
+        container.appendChild(div);
+    });
+}
+
+// --- BOENDE & ADMIN ---
+
+async function renderDropdown() {
+    const select = document.getElementById('boende');
+    const { data, error } = await db.from('boenden').select('*').order('namn', { ascending: true });
+
+    if (!error && data) {
+        select.innerHTML = '<option value="" selected disabled>Välj i listan...</option>';
+        data.forEach(rad => {
+            const opt = document.createElement('option');
+            opt.value = rad.namn;
+            opt.textContent = rad.namn;
+            select.appendChild(opt);
+        });
+    }
+}
 
 async function renderAdminList() {
     const list = document.getElementById('adminBoendeList');
     list.innerHTML = '<li class="list-group-item">Laddar lista...</li>';
 
-    const { data, error } = await db
-        .from('boenden')
-        .select('*')
-        .order('namn', { ascending: true });
+    const { data, error } = await db.from('boenden').select('*').order('namn', { ascending: true });
         
     if (data) {
         list.innerHTML = '';
         data.forEach(rad => {
             const li = document.createElement('li');
             li.className = "list-group-item d-flex justify-content-between align-items-center";
-            // Vi skickar med ID för att kunna ta bort rätt rad
             li.innerHTML = `${rad.namn} <button class="btn btn-sm btn-outline-danger" onclick="removeBoende(${rad.id})">Ta bort</button>`;
             list.appendChild(li);
         });
@@ -101,26 +143,13 @@ async function renderAdminList() {
 async function addBoende() {
     const input = document.getElementById('newBoendeInput');
     const namn = input.value.trim();
-    
-    if (!namn) {
-        alert("Du måste skriva ett namn först!");
-        return;
-    }
+    if (!namn) { alert("Skriv ett namn!"); return; }
 
-    console.log("Försöker spara:", namn); // För felsökning (F12)
-
-    // Notera: .select() på slutet hjälper ibland att bekräfta insättningen
-    const { data, error } = await db
-        .from('boenden')
-        .insert([{ namn: namn }])
-        .select();
-
+    const { error } = await db.from('boenden').insert([{ namn: namn }]);
     if (error) {
-        console.error("Supabase Error:", error);
-        alert("Kunde inte spara! Felkod: " + error.message + "\n(Tips: Kolla att RLS är avstängt i Supabase)");
+        alert("Fel: " + error.message);
     } else {
-        console.log("Sparat lyckat:", data);
-        alert("✅ Boendet '" + namn + "' är tillagt!");
+        alert("✅ Boende tillagt!");
         input.value = '';
         renderAdminList(); 
         renderDropdown(); 
@@ -128,45 +157,31 @@ async function addBoende() {
 }
 
 async function removeBoende(id) {
-    if(!confirm("Är du säker på att du vill ta bort detta boende?")) return;
-
-    const { error } = await db
-        .from('boenden')
-        .delete()
-        .eq('id', id);
-
-    if (error) {
-        alert("Fel: " + error.message);
-    } else {
-        renderAdminList();
-        renderDropdown();
-    }
+    if(!confirm("Ta bort detta boende?")) return;
+    const { error } = await db.from('boenden').delete().eq('id', id);
+    if (!error) { renderAdminList(); renderDropdown(); }
 }
 
-// --- ÖVRIGT (Stats & UI) ---
+// --- ÖVRIGT (Stats & Login) ---
 
 async function fetchStatistics() {
-    // Bara kör om vi faktiskt ser admin-panelen
     if(document.getElementById('adminPanel').classList.contains('d-none')) return;
-
+    
     const totalEl = document.getElementById('statTotal');
     const procentEl = document.getElementById('statKomplett');
     const listEl = document.getElementById('statBristerList');
-    
     listEl.innerHTML = '<li class="list-group-item">Hämtar data...</li>';
 
-    const { data, error } = await db.from('rapporter').select('*');
+    const { data } = await db.from('rapporter').select('*');
 
     if (!data || data.length === 0) {
-        totalEl.innerText = "0";
-        procentEl.innerText = "-";
+        totalEl.innerText = "0"; procentEl.innerText = "-"; 
         listEl.innerHTML = '<li class="list-group-item">Inga rapporter än.</li>';
         return;
     }
 
     const totalCount = data.length;
     totalEl.innerText = totalCount;
-
     const komplettaCount = data.filter(rad => rad.mapp_status === 'JA').length;
     procentEl.innerText = Math.round((komplettaCount / totalCount) * 100) + "%";
 
@@ -183,31 +198,13 @@ async function fetchStatistics() {
     const sorterade = Object.entries(bristRaknare).sort((a, b) => b[1] - a[1]);
     listEl.innerHTML = '';
     
-    if (sorterade.length === 0) {
-        listEl.innerHTML = '<li class="list-group-item text-success">Inga brister!</li>';
-    } else {
+    if (sorterade.length === 0) listEl.innerHTML = '<li class="list-group-item text-success">Inga brister!</li>';
+    else {
         sorterade.forEach(([brist, antal]) => {
             const proc = Math.round((antal / totalCount) * 100);
-            listEl.innerHTML += `
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    ${brist} <span class="badge bg-danger rounded-pill">${antal} (${proc}%)</span>
-                </li>`;
+            listEl.innerHTML += `<li class="list-group-item d-flex justify-content-between align-items-center">${brist} <span class="badge bg-danger rounded-pill">${antal} (${proc}%)</span></li>`;
         });
     }
-}
-
-function renderBrister() {
-    const container = document.getElementById('bristContainer');
-    container.innerHTML = '';
-    defaultBrister.forEach((brist, index) => {
-        const div = document.createElement('div');
-        div.className = "form-check py-2 border-bottom";
-        div.innerHTML = `
-            <input class="form-check-input scale-check" type="checkbox" value="${brist}" id="brist${index}">
-            <label class="form-check-label ms-2" for="brist${index}">${brist}</label>
-        `;
-        container.appendChild(div);
-    });
 }
 
 function setupEventListeners() {
@@ -229,33 +226,25 @@ function setupEventListeners() {
     };
 }
 
-function toggleMissing() {
-    const radioNej = document.getElementById('mappNej');
-    const missingSection = document.getElementById('missingSection');
-    if (radioNej && radioNej.checked) missingSection.classList.remove('d-none');
-    else missingSection.classList.add('d-none');
-}
-
 function setLoading(isLoading) {
     const btn = document.querySelector('button[type="submit"]');
-    if (isLoading) {
-        btn.disabled = true;
-        btn.textContent = "Skickar...";
-    } else {
-        btn.disabled = false;
-        btn.textContent = "SKICKA RAPPORT";
-    }
+    if (isLoading) { btn.disabled = true; btn.textContent = "Skickar..."; }
+    else { btn.disabled = false; btn.textContent = "SKICKA RAPPORT"; }
 }
 
 function checkAdmin() {
-    const pass = document.getElementById('adminPass').value;
-    if (pass === "nettan123") {
+    const passInput = document.getElementById('adminPass');
+    const errorMsg = document.getElementById('loginError');
+    errorMsg.classList.add('d-none');
+
+    if (passInput.value.trim() === "nettan112") {
         document.getElementById('adminLogin').classList.add('d-none');
         document.getElementById('adminPanel').classList.remove('d-none');
-        renderAdminList(); 
-        fetchStatistics(); 
+        passInput.value = '';
+        renderAdminList(); fetchStatistics(); 
     } else {
-        document.getElementById('loginError').classList.remove('d-none');
+        errorMsg.classList.remove('d-none');
+        passInput.select(); 
     }
 }
 
@@ -263,5 +252,4 @@ function logoutAdmin() {
     document.getElementById('adminPass').value = '';
     document.getElementById('adminPanel').classList.add('d-none');
     document.getElementById('adminLogin').classList.remove('d-none');
-    document.getElementById('loginError').classList.add('d-none');
 }
