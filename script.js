@@ -3,28 +3,24 @@
 const SUPABASE_URL = 'https://seeahrjwakvyinwmndwa.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlZWFocmp3YWt2eWlud21uZHdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MjUwOTcsImV4cCI6MjA4MDUwMTA5N30.xqMWlFIaOdqqKpGh_SFAmaT0rTEE7oy0muxFauW8SiY';
 
-// Initiera Supabase
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Default listor
-const defaultBoenden = ["Solbacken", "Bergshöjden", "Enebacken", "Rosengården", "Annat"];
+// Standardbrister (Dessa kan vi ha kvar i koden för enkelhets skull)
 const defaultBrister = ["Läkemedelslista", "Medföljandeblankett", "ID-band", "0-HLR Beslut", "Bemötandeplan"];
 
-// --- APP LOGIK ---
+// --- APP START ---
 document.addEventListener('DOMContentLoaded', function() {
-    
-    // UI Setup
-    renderDropdown();
+    renderDropdown(); // Hämta boenden från DB
     renderBrister();
     setupEventListeners();
+    fetchStatistics(); // Hämta stats om man är inloggad admin
 
-    // Hantera formulär-submit
+    // SKICKA RAPPORT
     document.getElementById('reportForm').addEventListener('submit', async function(event) {
         event.preventDefault();
         setLoading(true); 
         
-        // 1. Samla in data
         const boende = document.getElementById('boende').value;
         const prio = document.querySelector('input[name="prioDit"]:checked').value;
         const atgard = document.getElementById('atgard').value;
@@ -37,17 +33,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         const brister = bristerArr.join(", ");
 
-        // 2. Skicka till Supabase
-        const { data, error } = await db
-            .from('rapporter') // Kontrollera att tabellen heter exakt så här i Supabase
-            .insert([
-                { boende, prio, atgard, mapp_status, brister, fritext }
-            ]);
+        const { error } = await db
+            .from('rapporter')
+            .insert([{ boende, prio, atgard, mapp_status, brister, fritext }]);
 
         setLoading(false);
 
         if (error) {
-            console.error('Fel vid sparande:', error);
             alert("Fel: " + error.message);
         } else {
             alert("✅ Tack! Rapporten är sparad.");
@@ -57,169 +49,141 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// --- STATISTIK-LOGIK (NYTT!) ---
+// --- BOENDE-LISTA FRÅN DB ---
+
+async function renderDropdown() {
+    const select = document.getElementById('boende');
+    // Behåll "Välj..." och "Laddar..." tills vi fått svar
+    
+    const { data, error } = await db
+        .from('boenden')
+        .select('*')
+        .order('namn', { ascending: true });
+
+    if (error) {
+        console.error("Kunde inte hämta boenden:", error);
+        return;
+    }
+
+    // Töm och fyll på
+    select.innerHTML = '<option value="" selected disabled>Välj i listan...</option>';
+    data.forEach(rad => {
+        const opt = document.createElement('option');
+        opt.value = rad.namn;
+        opt.textContent = rad.namn;
+        select.appendChild(opt);
+    });
+}
+
+// --- ADMIN: HANTERA BOENDEN (DB) ---
+
+async function renderAdminList() {
+    const list = document.getElementById('adminBoendeList');
+    list.innerHTML = '<li class="list-group-item">Laddar lista...</li>';
+
+    const { data, error } = await db
+        .from('boenden')
+        .select('*')
+        .order('namn', { ascending: true });
+        
+    if (data) {
+        list.innerHTML = '';
+        data.forEach(rad => {
+            const li = document.createElement('li');
+            li.className = "list-group-item d-flex justify-content-between align-items-center";
+            // Vi skickar med ID för att kunna ta bort rätt rad
+            li.innerHTML = `${rad.namn} <button class="btn btn-sm btn-outline-danger" onclick="removeBoende(${rad.id})">Ta bort</button>`;
+            list.appendChild(li);
+        });
+    }
+}
+
+async function addBoende() {
+    const input = document.getElementById('newBoendeInput');
+    const namn = input.value.trim();
+    if (!namn) return;
+
+    const { error } = await db
+        .from('boenden')
+        .insert([{ namn: namn }]);
+
+    if (error) {
+        alert("Fel: " + error.message);
+    } else {
+        input.value = '';
+        // Uppdatera båda listorna direkt
+        renderAdminList(); 
+        renderDropdown(); 
+    }
+}
+
+async function removeBoende(id) {
+    if(!confirm("Är du säker på att du vill ta bort detta boende?")) return;
+
+    const { error } = await db
+        .from('boenden')
+        .delete()
+        .eq('id', id);
+
+    if (error) {
+        alert("Fel: " + error.message);
+    } else {
+        renderAdminList();
+        renderDropdown();
+    }
+}
+
+// --- ÖVRIGT (Stats & UI) ---
 
 async function fetchStatistics() {
+    // Bara kör om vi faktiskt ser admin-panelen
+    if(document.getElementById('adminPanel').classList.contains('d-none')) return;
+
     const totalEl = document.getElementById('statTotal');
     const procentEl = document.getElementById('statKomplett');
     const listEl = document.getElementById('statBristerList');
     
     listEl.innerHTML = '<li class="list-group-item">Hämtar data...</li>';
 
-    // Hämta ALL data från tabellen
-    const { data, error } = await db
-        .from('rapporter')
-        .select('*');
+    const { data, error } = await db.from('rapporter').select('*');
 
-    if (error) {
-        alert("Kunde inte hämta statistik: " + error.message);
-        return;
-    }
-
-    if (data.length === 0) {
+    if (!data || data.length === 0) {
         totalEl.innerText = "0";
         procentEl.innerText = "-";
         listEl.innerHTML = '<li class="list-group-item">Inga rapporter än.</li>';
         return;
     }
 
-    // 1. Räkna totalt
     const totalCount = data.length;
     totalEl.innerText = totalCount;
 
-    // 2. Räkna hur många som var kompletta (JA)
     const komplettaCount = data.filter(rad => rad.mapp_status === 'JA').length;
-    const procent = Math.round((komplettaCount / totalCount) * 100);
-    procentEl.innerText = procent + "%";
+    procentEl.innerText = Math.round((komplettaCount / totalCount) * 100) + "%";
 
-    // 3. Räkna vanligaste bristerna
     let bristRaknare = {};
-
     data.forEach(rad => {
-        // Om det finns brister och det inte är tomt
         if (rad.brister && rad.mapp_status === 'NEJ') {
-            // Dela upp strängen "ID-band, 0-HLR" till en lista
-            let items = rad.brister.split(','); 
-            items.forEach(item => {
-                let cleanItem = item.trim(); // Ta bort mellanslag
-                if (cleanItem) {
-                    bristRaknare[cleanItem] = (bristRaknare[cleanItem] || 0) + 1;
-                }
+            rad.brister.split(',').forEach(item => {
+                let clean = item.trim();
+                if (clean) bristRaknare[clean] = (bristRaknare[clean] || 0) + 1;
             });
         }
     });
 
-    // Sortera listan (Högst antal först)
-    // Object.entries gör om { "ID-band": 5, "Annat": 2 } till [["ID-band", 5], ["Annat", 2]]
-    const sorteradeBrister = Object.entries(bristRaknare).sort((a, b) => b[1] - a[1]);
-
-    // Rendera listan
+    const sorterade = Object.entries(bristRaknare).sort((a, b) => b[1] - a[1]);
     listEl.innerHTML = '';
-    if (sorteradeBrister.length === 0) {
-        listEl.innerHTML = '<li class="list-group-item text-success">Inga brister rapporterade!</li>';
+    
+    if (sorterade.length === 0) {
+        listEl.innerHTML = '<li class="list-group-item text-success">Inga brister!</li>';
     } else {
-        sorteradeBrister.forEach(([brist, antal]) => {
-            // Räkna ut procent av alla rapporter som hade denna brist
-            const bristProcent = Math.round((antal / totalCount) * 100);
-            
+        sorterade.forEach(([brist, antal]) => {
+            const proc = Math.round((antal / totalCount) * 100);
             listEl.innerHTML += `
                 <li class="list-group-item d-flex justify-content-between align-items-center">
-                    ${brist}
-                    <span class="badge bg-danger rounded-pill">${antal} st (${bristProcent}%)</span>
-                </li>
-            `;
+                    ${brist} <span class="badge bg-danger rounded-pill">${antal} (${proc}%)</span>
+                </li>`;
         });
     }
-}
-
-// --- STANDARD UI FUNKTIONER ---
-
-function setupEventListeners() {
-    const radioJa = document.getElementById('mappJa');
-    const radioNej = document.getElementById('mappNej');
-    
-    if(radioJa && radioNej) {
-        radioJa.addEventListener('change', toggleMissing);
-        radioNej.addEventListener('change', toggleMissing);
-    }
-
-    window.showTab = function(tabId) {
-        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('d-none'));
-        document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
-        document.getElementById(tabId).classList.remove('d-none');
-        
-        // Sätt aktiv knapp
-        const navBtns = document.querySelectorAll('.nav-btn');
-        if(tabId === 'rapportTab') navBtns[0].classList.add('active');
-        if(tabId === 'infoTab') navBtns[1].classList.add('active');
-        if(tabId === 'adminTab') navBtns[2].classList.add('active');
-    };
-}
-
-function toggleMissing() {
-    const radioNej = document.getElementById('mappNej');
-    const missingSection = document.getElementById('missingSection');
-    if (radioNej && radioNej.checked) {
-        missingSection.classList.remove('d-none');
-    } else {
-        missingSection.classList.add('d-none');
-    }
-}
-
-function setLoading(isLoading) {
-    const btn = document.querySelector('button[type="submit"]');
-    if (isLoading) {
-        btn.disabled = true;
-        btn.textContent = "Skickar...";
-    } else {
-        btn.disabled = false;
-        btn.textContent = "SKICKA RAPPORT";
-    }
-}
-
-// --- ADMIN FUNKTIONER ---
-
-function checkAdmin() {
-    const pass = document.getElementById('adminPass').value;
-    if (pass === "nettan123") {
-        document.getElementById('adminLogin').classList.add('d-none');
-        document.getElementById('adminPanel').classList.remove('d-none');
-        renderAdminList();
-        
-        // HÄMTA STATISTIK DIREKT VID LOGIN!
-        fetchStatistics(); 
-        
-    } else {
-        document.getElementById('loginError').classList.remove('d-none');
-    }
-}
-
-function logoutAdmin() {
-    document.getElementById('adminPass').value = '';
-    document.getElementById('adminPanel').classList.add('d-none');
-    document.getElementById('adminLogin').classList.remove('d-none');
-    document.getElementById('loginError').classList.add('d-none');
-}
-
-// Listor och Admin-boenden (Local Storage)
-function getData(key, defaultData) {
-    const stored = localStorage.getItem(key);
-    return stored ? JSON.parse(stored) : defaultData;
-}
-function saveData(key, data) {
-    localStorage.setItem(key, JSON.stringify(data));
-}
-
-function renderDropdown() {
-    const boenden = getData('sabo_boenden', defaultBoenden);
-    const select = document.getElementById('boende');
-    select.innerHTML = '<option value="" selected disabled>Välj i listan...</option>';
-    boenden.forEach(b => {
-        const opt = document.createElement('option');
-        opt.value = b;
-        opt.textContent = b;
-        select.appendChild(opt);
-    });
 }
 
 function renderBrister() {
@@ -236,37 +200,58 @@ function renderBrister() {
     });
 }
 
-function renderAdminList() {
-    const boenden = getData('sabo_boenden', defaultBoenden);
-    const list = document.getElementById('adminBoendeList');
-    list.innerHTML = '';
-    boenden.forEach((b, index) => {
-        const li = document.createElement('li');
-        li.className = "list-group-item d-flex justify-content-between align-items-center";
-        li.innerHTML = `${b} <button class="btn btn-sm btn-outline-danger" onclick="removeBoende(${index})">Ta bort</button>`;
-        list.appendChild(li);
-    });
+function setupEventListeners() {
+    const radioJa = document.getElementById('mappJa');
+    const radioNej = document.getElementById('mappNej');
+    if(radioJa) {
+        radioJa.addEventListener('change', toggleMissing);
+        radioNej.addEventListener('change', toggleMissing);
+    }
+    window.showTab = function(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('d-none'));
+        document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById(tabId).classList.remove('d-none');
+        
+        const btns = document.querySelectorAll('.nav-btn');
+        if(tabId === 'rapportTab') btns[0].classList.add('active');
+        if(tabId === 'infoTab') btns[1].classList.add('active');
+        if(tabId === 'adminTab') btns[2].classList.add('active');
+    };
 }
 
-function addBoende() {
-    const input = document.getElementById('newBoendeInput');
-    const val = input.value.trim();
-    if (val) {
-        const boenden = getData('sabo_boenden', defaultBoenden);
-        boenden.push(val);
-        saveData('sabo_boenden', boenden);
-        input.value = '';
-        renderAdminList();
-        renderDropdown();
+function toggleMissing() {
+    const radioNej = document.getElementById('mappNej');
+    const missingSection = document.getElementById('missingSection');
+    if (radioNej && radioNej.checked) missingSection.classList.remove('d-none');
+    else missingSection.classList.add('d-none');
+}
+
+function setLoading(isLoading) {
+    const btn = document.querySelector('button[type="submit"]');
+    if (isLoading) {
+        btn.disabled = true;
+        btn.textContent = "Skickar...";
+    } else {
+        btn.disabled = false;
+        btn.textContent = "SKICKA RAPPORT";
     }
 }
 
-function removeBoende(index) {
-    if(confirm("Är du säker?")) {
-        const boenden = getData('sabo_boenden', defaultBoenden);
-        boenden.splice(index, 1);
-        saveData('sabo_boenden', boenden);
-        renderAdminList();
-        renderDropdown();
+function checkAdmin() {
+    const pass = document.getElementById('adminPass').value;
+    if (pass === "nettan123") {
+        document.getElementById('adminLogin').classList.add('d-none');
+        document.getElementById('adminPanel').classList.remove('d-none');
+        renderAdminList(); 
+        fetchStatistics(); 
+    } else {
+        document.getElementById('loginError').classList.remove('d-none');
     }
+}
+
+function logoutAdmin() {
+    document.getElementById('adminPass').value = '';
+    document.getElementById('adminPanel').classList.add('d-none');
+    document.getElementById('adminLogin').classList.remove('d-none');
+    document.getElementById('loginError').classList.add('d-none');
 }
