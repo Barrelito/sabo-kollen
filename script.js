@@ -1,19 +1,18 @@
 // --- KONFIGURATION ---
-
-const SUPABASE_URL = 'https://seeahrjwakvyinwmndwa.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlZWFocmp3YWt2eWlud21uZHdhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MjUwOTcsImV4cCI6MjA4MDUwMTA5N30.xqMWlFIaOdqqKpGh_SFAmaT0rTEE7oy0muxFauW8SiY';
+const SUPABASE_URL = 'DIN_SUPABASE_URL_HÄR';
+const SUPABASE_KEY = 'DIN_ANON_KEY_HÄR';
 
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// Standardpunkter (Används nu BÅDE för brister och kom-ihåg-listan)
+// Standardpunkter
 const defaultBrister = ["Läkemedelslista", "Medföljandeblankett", "ID-band", "0-HLR Beslut", "Bemötandeplan"];
 
 // --- APP START ---
 document.addEventListener('DOMContentLoaded', function() {
     renderDropdown(); 
-    renderBrister();     // Skapar checkboxarna för NEJ
-    renderSuccessList(); // Skapar punktlistan för JA (Nytt!)
+    renderBrister();     
+    renderSuccessList(); 
     setupEventListeners();
     fetchStatistics(); 
 
@@ -29,7 +28,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const fritext = document.getElementById('fritext').value;
         
         let bristerArr = [];
-        // Vi samlar bara in brister om man faktiskt valt NEJ
         if (mapp_status === 'NEJ') {
             document.querySelectorAll('#bristContainer input:checked').forEach((checkbox) => {
                 bristerArr.push(checkbox.value);
@@ -48,8 +46,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             alert("✅ Tack! Rapporten är sparad.");
             this.reset();
-            
-            // Återställ vyerna (dölj båda listorna)
             document.getElementById('missingSection').classList.add('d-none');
             document.getElementById('successSection').classList.add('d-none');
         }
@@ -58,40 +54,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // --- UI-FUNKTIONER ---
 
-// Funktion för att visa/dölja rätt lista (JA vs NEJ)
 function toggleMissing() {
     const radioNej = document.getElementById('mappNej');
     const radioJa = document.getElementById('mappJa');
-    
     const missingSection = document.getElementById('missingSection');
     const successSection = document.getElementById('successSection');
 
-    // Dölj båda först för att "nollställa"
     missingSection.classList.add('d-none');
     successSection.classList.add('d-none');
 
     if (radioNej && radioNej.checked) {
-        missingSection.classList.remove('d-none'); // Visa röda
+        missingSection.classList.remove('d-none');
     } 
     else if (radioJa && radioJa.checked) {
-        successSection.classList.remove('d-none'); // Visa gröna
+        successSection.classList.remove('d-none');
     }
 }
 
-// Rendera den GRÖNA "Kom-ihåg"-listan (Bara text, inga checkboxar)
 function renderSuccessList() {
     const list = document.getElementById('successList');
     list.innerHTML = '';
     defaultBrister.forEach((punkt) => {
         const li = document.createElement('li');
         li.className = "list-group-item bg-transparent border-0 py-1 ps-0 text-dark";
-        // Lägg till en grön bock framför varje
         li.innerHTML = `<i class="fas fa-check text-success me-2"></i> ${punkt}`;
         list.appendChild(li);
     });
 }
 
-// Rendera den RÖDA "Brist"-listan (Checkboxar)
 function renderBrister() {
     const container = document.getElementById('bristContainer');
     container.innerHTML = '';
@@ -127,7 +117,7 @@ async function renderAdminList() {
     const list = document.getElementById('adminBoendeList');
     list.innerHTML = '<li class="list-group-item">Laddar lista...</li>';
 
-    const { data, error } = await db.from('boenden').select('*').order('namn', { ascending: true });
+    const { data } = await db.from('boenden').select('*').order('namn', { ascending: true });
         
     if (data) {
         list.innerHTML = '';
@@ -146,9 +136,8 @@ async function addBoende() {
     if (!namn) { alert("Skriv ett namn!"); return; }
 
     const { error } = await db.from('boenden').insert([{ namn: namn }]);
-    if (error) {
-        alert("Fel: " + error.message);
-    } else {
+    if (error) { alert("Fel: " + error.message); } 
+    else {
         alert("✅ Boende tillagt!");
         input.value = '';
         renderAdminList(); 
@@ -207,6 +196,74 @@ async function fetchStatistics() {
     }
 }
 
+// NYTT: Hämta lista med rapporter
+async function fetchReportsList() {
+    const listContainer = document.getElementById('individualReportsList');
+    const countBadge = document.getElementById('reportCountBadge');
+    
+    const { data, error } = await db
+        .from('rapporter')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+    if (error) {
+        listContainer.innerHTML = `<div class="p-3 text-danger">Kunde inte hämta lista: ${error.message}</div>`;
+        return;
+    }
+
+    if (!data || data.length === 0) {
+        listContainer.innerHTML = `<div class="p-3 text-center text-muted">Inga rapporter inskickade än.</div>`;
+        countBadge.innerText = "0 st";
+        return;
+    }
+
+    countBadge.innerText = data.length + " st (Visar 50 senaste)";
+    listContainer.innerHTML = '';
+
+    data.forEach(rad => {
+        const datum = new Date(rad.created_at).toLocaleString('sv-SE', { 
+            month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' 
+        });
+
+        const mappIkon = rad.mapp_status === 'JA' 
+            ? '<span class="badge bg-success">Mapp OK</span>' 
+            : '<span class="badge bg-danger">Mapp Brist</span>';
+
+        let bristHtml = '';
+        if (rad.brister && rad.mapp_status === 'NEJ') {
+            bristHtml = `<div class="small text-danger mt-1"><strong>Saknades:</strong> ${rad.brister}</div>`;
+        }
+
+        let fritextHtml = '';
+        if (rad.fritext) {
+            fritextHtml = `
+                <div class="mt-2 p-2 bg-light border-start border-4 border-info rounded small">
+                    <em>"${rad.fritext}"</em>
+                </div>`;
+        }
+
+        const item = document.createElement('div');
+        item.className = "list-group-item p-3";
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start mb-1">
+                <h6 class="mb-0 fw-bold">${rad.boende}</h6>
+                <small class="text-muted" style="font-size:0.75rem;">${datum}</small>
+            </div>
+            
+            <div class="mb-2">
+                ${mappIkon}
+                <span class="badge border text-dark ms-1">Prio ${rad.prio}</span>
+                <span class="badge border text-dark ms-1">${rad.atgard}</span>
+            </div>
+
+            ${bristHtml}
+            ${fritextHtml}
+        `;
+        listContainer.appendChild(item);
+    });
+}
+
 function setupEventListeners() {
     const radioJa = document.getElementById('mappJa');
     const radioNej = document.getElementById('mappNej');
@@ -241,7 +298,9 @@ function checkAdmin() {
         document.getElementById('adminLogin').classList.add('d-none');
         document.getElementById('adminPanel').classList.remove('d-none');
         passInput.value = '';
-        renderAdminList(); fetchStatistics(); 
+        renderAdminList(); 
+        fetchStatistics();
+        fetchReportsList(); // Hämta individuella rapporter
     } else {
         errorMsg.classList.remove('d-none');
         passInput.select(); 
