@@ -101,17 +101,27 @@ async function renderAdminList() {
 async function addBoende() {
     const input = document.getElementById('newBoendeInput');
     const namn = input.value.trim();
-    if (!namn) return;
+    
+    if (!namn) {
+        alert("Du måste skriva ett namn först!");
+        return;
+    }
 
-    const { error } = await db
+    console.log("Försöker spara:", namn); // För felsökning (F12)
+
+    // Notera: .select() på slutet hjälper ibland att bekräfta insättningen
+    const { data, error } = await db
         .from('boenden')
-        .insert([{ namn: namn }]);
+        .insert([{ namn: namn }])
+        .select();
 
     if (error) {
-        alert("Fel: " + error.message);
+        console.error("Supabase Error:", error);
+        alert("Kunde inte spara! Felkod: " + error.message + "\n(Tips: Kolla att RLS är avstängt i Supabase)");
     } else {
+        console.log("Sparat lyckat:", data);
+        alert("✅ Boendet '" + namn + "' är tillagt!");
         input.value = '';
-        // Uppdatera båda listorna direkt
         renderAdminList(); 
         renderDropdown(); 
     }
