@@ -136,19 +136,20 @@ async function addBoende() {
     if (!namn) { alert("Skriv ett namn!"); return; }
 
     const { error } = await db.from('boenden').insert([{ namn: namn }]);
-    if (error) { alert("Fel: " + error.message); } 
+    if (error) { alert("Fel: " + error.message); }
     else {
         alert("✅ Boende tillagt!");
         input.value = '';
-        renderAdminList(); 
-        renderDropdown(); 
+        renderAdminList();
+        renderDropdown();
+        renderAdminBoendeFilter();
     }
 }
 
 async function removeBoende(id) {
     if(!confirm("Ta bort detta boende?")) return;
     const { error } = await db.from('boenden').delete().eq('id', id);
-    if (!error) { renderAdminList(); renderDropdown(); }
+    if (!error) { renderAdminList(); renderDropdown(); renderAdminBoendeFilter(); }
 }
 
 // --- ÖVRIGT (Stats & Login) ---
@@ -196,10 +197,56 @@ async function fetchStatistics() {
     }
 }
 
-// NYTT: Hämta lista med rapporter (med paginering)
+// NYTT: Hämta lista med rapporter (med paginering + filter)
 const REPORTS_PAGE_SIZE = 50;
 let reportsLoaded = 0;
 let reportsTotal = 0;
+let currentFilter = { boende: '', fromDate: '', toDate: '' };
+
+function buildReportsQuery(selectExpr = '*', selectOpts = undefined) {
+    let q = selectOpts ? db.from('rapporter').select(selectExpr, selectOpts)
+                       : db.from('rapporter').select(selectExpr);
+    if (currentFilter.boende) q = q.eq('boende', currentFilter.boende);
+    if (currentFilter.fromDate) q = q.gte('created_at', currentFilter.fromDate + 'T00:00:00');
+    if (currentFilter.toDate)   q = q.lte('created_at', currentFilter.toDate   + 'T23:59:59');
+    return q;
+}
+
+async function renderAdminBoendeFilter() {
+    const sel = document.getElementById('filterBoende');
+    if (!sel) return;
+    const { data } = await db.from('boenden').select('*').order('namn', { ascending: true });
+    if (!data) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">Alla boenden</option>';
+    data.forEach(rad => {
+        const opt = document.createElement('option');
+        opt.value = rad.namn;
+        opt.textContent = rad.namn;
+        sel.appendChild(opt);
+    });
+    sel.value = current;
+}
+
+function readFilterFromUI() {
+    currentFilter.boende   = document.getElementById('filterBoende').value || '';
+    currentFilter.fromDate = document.getElementById('filterFrom').value || '';
+    currentFilter.toDate   = document.getElementById('filterTo').value || '';
+    const btn = document.getElementById('printBoendeBtn');
+    if (btn) btn.disabled = !currentFilter.boende;
+}
+
+function applyReportFilter() {
+    readFilterFromUI();
+    fetchReportsList(false);
+}
+
+function clearReportFilter() {
+    document.getElementById('filterBoende').value = '';
+    document.getElementById('filterFrom').value = '';
+    document.getElementById('filterTo').value = '';
+    applyReportFilter();
+}
 
 async function fetchReportsList(append = false) {
     const listContainer = document.getElementById('individualReportsList');
@@ -220,9 +267,7 @@ async function fetchReportsList(append = false) {
     const from = reportsLoaded;
     const to = reportsLoaded + REPORTS_PAGE_SIZE - 1;
 
-    const { data, error, count } = await db
-        .from('rapporter')
-        .select('*', { count: 'exact' })
+    const { data, error, count } = await buildReportsQuery('*', { count: 'exact' })
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -344,9 +389,10 @@ function checkAdmin() {
         document.getElementById('adminLogin').classList.add('d-none');
         document.getElementById('adminPanel').classList.remove('d-none');
         passInput.value = '';
-        renderAdminList(); 
+        renderAdminList();
+        renderAdminBoendeFilter();
         fetchStatistics();
-        fetchReportsList(); // Hämta individuella rapporter
+        fetchReportsList();
     } else {
         errorMsg.classList.remove('d-none');
         passInput.select(); 
@@ -357,4 +403,170 @@ function logoutAdmin() {
     document.getElementById('adminPass').value = '';
     document.getElementById('adminPanel').classList.add('d-none');
     document.getElementById('adminLogin').classList.remove('d-none');
+}
+
+// --- PDF-SAMMANFATTNING (via browserns utskrift) ---
+
+async function fetchAllReportsForPrint() {
+    const CHUNK = 1000;
+    let all = [];
+    let from = 0;
+    while (true) {
+        const { data, error } = await buildReportsQuery('*')
+            .order('created_at', { ascending: false })
+            .range(from, from + CHUNK - 1);
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        all = all.concat(data);
+        if (data.length < CHUNK) break;
+        from += CHUNK;
+    }
+    return all;
+}
+
+function computeSummary(data) {
+    const total = data.length;
+    const komplett = data.filter(r => r.mapp_status === 'JA').length;
+    const prio = { '1': 0, '2': 0, '3': 0 };
+    const atgard = {};
+    const brister = {};
+    data.forEach(r => {
+        if (prio[r.prio] !== undefined) prio[r.prio]++;
+        if (r.atgard) atgard[r.atgard] = (atgard[r.atgard] || 0) + 1;
+        if (r.mapp_status === 'NEJ' && r.brister) {
+            r.brister.split(',').forEach(b => {
+                const clean = b.trim();
+                if (clean) brister[clean] = (brister[clean] || 0) + 1;
+            });
+        }
+    });
+    return {
+        total,
+        komplett,
+        komplettPct: total ? Math.round((komplett / total) * 100) : 0,
+        prio,
+        atgard,
+        topBrister: Object.entries(brister).sort((a, b) => b[1] - a[1])
+    };
+}
+
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+}
+
+function buildPrintHtml(data, title, filterInfo) {
+    const s = computeSummary(data);
+    const now = new Date().toLocaleString('sv-SE', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit'
+    });
+
+    const atgardRows = Object.entries(s.atgard)
+        .sort((a, b) => b[1] - a[1])
+        .map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td>${v}</td></tr>`).join('');
+
+    const bristRows = s.topBrister.length
+        ? s.topBrister.map(([b, n]) => {
+            const pct = s.total ? Math.round((n / s.total) * 100) : 0;
+            return `<tr><td>${escapeHtml(b)}</td><td>${n}</td><td>${pct}%</td></tr>`;
+        }).join('')
+        : `<tr><td colspan="3">Inga brister registrerade.</td></tr>`;
+
+    const reportRows = data.map(r => {
+        const datum = new Date(r.created_at).toLocaleString('sv-SE', {
+            year: 'numeric', month: 'short', day: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+        const mappCls = r.mapp_status === 'JA' ? 'mapp-ok' : 'mapp-brist';
+        const mappTxt = r.mapp_status === 'JA' ? 'Mapp OK' : 'Mapp Brist';
+        const saknades = (r.mapp_status === 'NEJ' && r.brister)
+            ? `<div class="saknades"><strong>Saknades:</strong> ${escapeHtml(r.brister)}</div>` : '';
+        const fritext = r.fritext
+            ? `<div class="fritext">"${escapeHtml(r.fritext)}"</div>` : '';
+        return `
+            <div class="print-report">
+                <h3>${escapeHtml(r.boende)} <span class="meta">— ${datum}</span></h3>
+                <div>
+                    <span class="badge-print ${mappCls}">${mappTxt}</span>
+                    <span class="badge-print">Prio ${escapeHtml(r.prio)}</span>
+                    <span class="badge-print">${escapeHtml(r.atgard || '')}</span>
+                </div>
+                ${saknades}
+                ${fritext}
+            </div>`;
+    }).join('');
+
+    return `
+        <h1>🚑 SÄBO-kollen — ${escapeHtml(title)}</h1>
+        <div class="meta">${escapeHtml(filterInfo)}</div>
+        <div class="meta">Utskriven: ${now}</div>
+
+        <h2>Sammanfattning</h2>
+        <table>
+            <tr><th>Totalt antal rapporter</th><td>${s.total}</td></tr>
+            <tr><th>Helt kompletta mappar</th><td>${s.komplett} (${s.komplettPct}%)</td></tr>
+            <tr><th>Prio 1 / 2 / 3</th><td>${s.prio['1']} / ${s.prio['2']} / ${s.prio['3']}</td></tr>
+        </table>
+
+        <h2>Åtgärd / destination</h2>
+        <table>
+            <thead><tr><th>Åtgärd</th><th>Antal</th></tr></thead>
+            <tbody>${atgardRows || '<tr><td colspan="2">-</td></tr>'}</tbody>
+        </table>
+
+        <h2>Vanligaste bristerna</h2>
+        <table>
+            <thead><tr><th>Brist</th><th>Antal</th><th>Andel</th></tr></thead>
+            <tbody>${bristRows}</tbody>
+        </table>
+
+        <h2>Detaljerade rapporter (${s.total} st)</h2>
+        ${reportRows || '<p>Inga rapporter matchar filtret.</p>'}
+    `;
+}
+
+async function printSummary(onlyBoende) {
+    readFilterFromUI();
+    if (onlyBoende && !currentFilter.boende) {
+        alert("Välj ett boende i filtret först.");
+        return;
+    }
+
+    // "Endast valt boende" ignorerar datumfilter — hela historiken för boendet.
+    const savedFilter = { ...currentFilter };
+    if (onlyBoende) {
+        currentFilter = { boende: savedFilter.boende, fromDate: '', toDate: '' };
+    }
+
+    const printView = document.getElementById('printView');
+    printView.innerHTML = `<h1>Förbereder utskrift...</h1>`;
+
+    let data;
+    try {
+        data = await fetchAllReportsForPrint();
+    } catch (e) {
+        currentFilter = savedFilter;
+        alert("Kunde inte hämta data för utskrift: " + e.message);
+        return;
+    }
+
+    const title = currentFilter.boende
+        ? `Sammanställning — ${currentFilter.boende}`
+        : `Sammanställning (alla boenden)`;
+
+    const parts = [];
+    parts.push(currentFilter.boende ? `Boende: ${currentFilter.boende}` : "Boende: alla");
+    if (currentFilter.fromDate || currentFilter.toDate) {
+        parts.push(`Period: ${currentFilter.fromDate || '…'} till ${currentFilter.toDate || '…'}`);
+    } else {
+        parts.push("Period: alla datum");
+    }
+    const filterInfo = parts.join(" · ");
+
+    printView.innerHTML = buildPrintHtml(data, title, filterInfo);
+    window.print();
+
+    currentFilter = savedFilter;
 }
