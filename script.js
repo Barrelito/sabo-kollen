@@ -196,38 +196,66 @@ async function fetchStatistics() {
     }
 }
 
-// NYTT: Hämta lista med rapporter
-async function fetchReportsList() {
+// NYTT: Hämta lista med rapporter (med paginering)
+const REPORTS_PAGE_SIZE = 50;
+let reportsLoaded = 0;
+let reportsTotal = 0;
+
+async function fetchReportsList(append = false) {
     const listContainer = document.getElementById('individualReportsList');
     const countBadge = document.getElementById('reportCountBadge');
-    
-    const { data, error } = await db
+    const loadMoreContainer = document.getElementById('loadMoreContainer');
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
+
+    if (!append) {
+        reportsLoaded = 0;
+        reportsTotal = 0;
+        listContainer.innerHTML = `<div class="text-center p-3 text-muted">Laddar rapporter...</div>`;
+        loadMoreContainer.classList.add('d-none');
+    } else {
+        loadMoreBtn.disabled = true;
+        loadMoreBtn.textContent = "Laddar...";
+    }
+
+    const from = reportsLoaded;
+    const to = reportsLoaded + REPORTS_PAGE_SIZE - 1;
+
+    const { data, error, count } = await db
         .from('rapporter')
-        .select('*')
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
-        .limit(50);
+        .range(from, to);
 
     if (error) {
-        listContainer.innerHTML = `<div class="p-3 text-danger">Kunde inte hämta lista: ${error.message}</div>`;
+        if (!append) {
+            listContainer.innerHTML = `<div class="p-3 text-danger">Kunde inte hämta lista: ${error.message}</div>`;
+        } else {
+            loadMoreBtn.disabled = false;
+            loadMoreBtn.textContent = "Ladda fler rapporter";
+            alert("Kunde inte hämta fler rapporter: " + error.message);
+        }
         return;
     }
 
-    if (!data || data.length === 0) {
-        listContainer.innerHTML = `<div class="p-3 text-center text-muted">Inga rapporter inskickade än.</div>`;
-        countBadge.innerText = "0 st";
-        return;
-    }
+    if (typeof count === 'number') reportsTotal = count;
 
-    countBadge.innerText = data.length + " st (Visar 50 senaste)";
-    listContainer.innerHTML = '';
+    if (!append) {
+        if (!data || data.length === 0) {
+            listContainer.innerHTML = `<div class="p-3 text-center text-muted">Inga rapporter inskickade än.</div>`;
+            countBadge.innerText = "0 st";
+            loadMoreContainer.classList.add('d-none');
+            return;
+        }
+        listContainer.innerHTML = '';
+    }
 
     data.forEach(rad => {
-        const datum = new Date(rad.created_at).toLocaleString('sv-SE', { 
-            month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit' 
+        const datum = new Date(rad.created_at).toLocaleString('sv-SE', {
+            month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'
         });
 
-        const mappIkon = rad.mapp_status === 'JA' 
-            ? '<span class="badge bg-success">Mapp OK</span>' 
+        const mappIkon = rad.mapp_status === 'JA'
+            ? '<span class="badge bg-success">Mapp OK</span>'
             : '<span class="badge bg-danger">Mapp Brist</span>';
 
         let bristHtml = '';
@@ -250,7 +278,7 @@ async function fetchReportsList() {
                 <h6 class="mb-0 fw-bold">${rad.boende}</h6>
                 <small class="text-muted" style="font-size:0.75rem;">${datum}</small>
             </div>
-            
+
             <div class="mb-2">
                 ${mappIkon}
                 <span class="badge border text-dark ms-1">Prio ${rad.prio}</span>
@@ -262,6 +290,24 @@ async function fetchReportsList() {
         `;
         listContainer.appendChild(item);
     });
+
+    reportsLoaded += data.length;
+
+    countBadge.innerText = `Visar ${reportsLoaded} av ${reportsTotal} st`;
+
+    if (reportsLoaded < reportsTotal) {
+        loadMoreContainer.classList.remove('d-none');
+        loadMoreBtn.disabled = false;
+        const remaining = reportsTotal - reportsLoaded;
+        const nextChunk = Math.min(REPORTS_PAGE_SIZE, remaining);
+        loadMoreBtn.textContent = `Ladda fler (${nextChunk} av ${remaining} kvar)`;
+    } else {
+        loadMoreContainer.classList.add('d-none');
+    }
+}
+
+function loadMoreReports() {
+    fetchReportsList(true);
 }
 
 function setupEventListeners() {
