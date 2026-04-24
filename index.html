@@ -221,9 +221,47 @@
                     </div>
                 </div>
 
+                <div class="card mb-3 border-secondary">
+                    <div class="card-header fw-bold">🔎 Filtrera & Exportera</div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label small fw-bold mb-1">Boende</label>
+                            <select id="filterBoende" class="form-select" onchange="applyReportFilter()">
+                                <option value="">Alla boenden</option>
+                            </select>
+                        </div>
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small fw-bold mb-1">Från datum</label>
+                                <input type="date" id="filterFrom" class="form-control" onchange="applyReportFilter()">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small fw-bold mb-1">Till datum</label>
+                                <input type="date" id="filterTo" class="form-control" onchange="applyReportFilter()">
+                            </div>
+                        </div>
+                        <button class="btn btn-outline-secondary btn-sm w-100 mb-3" onclick="clearReportFilter()">
+                            Rensa filter
+                        </button>
+                        <hr>
+                        <label class="form-label small fw-bold mb-2">Exportera sammanställning (PDF via utskrift)</label>
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary" onclick="printSummary(false)">
+                                📄 Skriv ut / Spara som PDF (aktuellt filter)
+                            </button>
+                            <button id="printBoendeBtn" class="btn btn-outline-primary" onclick="printSummary(true)" disabled>
+                                📄 Skriv ut / Spara som PDF (endast valt boende)
+                            </button>
+                        </div>
+                        <p class="small text-muted mt-2 mb-0">
+                            Tips: i utskriftsdialogen väljer du "Spara som PDF" som skrivare.
+                        </p>
+                    </div>
+                </div>
+
                 <div class="card mb-4 border-secondary">
                     <div class="card-header fw-bold d-flex justify-content-between align-items-center">
-                        <span>📝 Senaste Rapporter</span>
+                        <span>📝 Rapporter</span>
                         <small class="text-muted" id="reportCountBadge">0 st</small>
                     </div>
                     <div class="card-body p-0" style="max-height: 500px; overflow-y: auto;">
@@ -255,6 +293,8 @@
         </div>
 
     </div>
+
+    <div id="printView"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="script.js"></script>
