@@ -474,7 +474,8 @@ function buildPrintHtml(data, title, filterInfo) {
         }).join('')
         : `<tr><td colspan="3">Inga brister registrerade.</td></tr>`;
 
-    const reportRows = data.map(r => {
+    // Rendera en enskild rapport (utan boende-namn — det står i gruppens rubrik)
+    const renderReport = r => {
         const datum = new Date(r.created_at).toLocaleString('sv-SE', {
             year: 'numeric', month: 'short', day: 'numeric',
             hour: '2-digit', minute: '2-digit'
@@ -487,7 +488,7 @@ function buildPrintHtml(data, title, filterInfo) {
             ? `<div class="fritext">"${escapeHtml(r.fritext)}"</div>` : '';
         return `
             <div class="print-report">
-                <h3>${escapeHtml(r.boende)} <span class="meta">— ${datum}</span></h3>
+                <h3 class="report-datum">${datum}</h3>
                 <div>
                     <span class="badge-print ${mappCls}">${mappTxt}</span>
                     <span class="badge-print">Prio ${escapeHtml(r.prio)}</span>
@@ -495,6 +496,31 @@ function buildPrintHtml(data, title, filterInfo) {
                 </div>
                 ${saknades}
                 ${fritext}
+            </div>`;
+    };
+
+    // Gruppera de detaljerade rapporterna per boende (A–Ö),
+    // inom varje boende sorterat efter datum (nyast först).
+    const grupper = {};
+    data.forEach(r => {
+        const key = (r.boende && r.boende.trim()) ? r.boende : 'Okänt boende';
+        (grupper[key] = grupper[key] || []).push(r);
+    });
+    const sorteradeBoenden = Object.keys(grupper)
+        .sort((a, b) => a.localeCompare(b, 'sv'));
+
+    const reportRows = sorteradeBoenden.map(boende => {
+        const rader = grupper[boende].sort(
+            (a, b) => new Date(b.created_at) - new Date(a.created_at)
+        );
+        const komplett = rader.filter(r => r.mapp_status === 'JA').length;
+        const komplettPct = rader.length ? Math.round((komplett / rader.length) * 100) : 0;
+        return `
+            <div class="boende-grupp">
+                <h3 class="boende-rubrik">${escapeHtml(boende)}
+                    <span class="meta">— ${rader.length} rapporter · ${komplettPct}% kompletta mappar</span>
+                </h3>
+                ${rader.map(renderReport).join('')}
             </div>`;
     }).join('');
 
@@ -522,7 +548,7 @@ function buildPrintHtml(data, title, filterInfo) {
             <tbody>${bristRows}</tbody>
         </table>
 
-        <h2>Detaljerade rapporter (${s.total} st)</h2>
+        <h2>Detaljerade rapporter — sorterade per boende (${s.total} st)</h2>
         ${reportRows || '<p>Inga rapporter matchar filtret.</p>'}
     `;
 }

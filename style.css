@@ -86,4 +86,16 @@ body {
         color: #333;
     }
     #printView .saknades { color: #b00020; font-size: 10pt; }
+
+    /* Grupp per boende i den detaljerade listan */
+    #printView .boende-grupp { margin-top: 14px; }
+    #printView .boende-rubrik {
+        font-size: 12pt;
+        background: #eef1f5;
+        padding: 4px 6px;
+        border-bottom: 2px solid #333;
+        page-break-after: avoid;
+        break-after: avoid;
+    }
+    #printView .report-datum { font-weight: normal; color: #333; }
 }
