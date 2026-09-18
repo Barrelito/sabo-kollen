@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SÄBO-kollen</title>
+    <script>
+        if (location.hostname === 'barrelito.github.io' && /^\/sabo-kollen(?:\/|$)/.test(location.pathname)) {
+            location.replace('https://sabo-kollen.vercel.app/' + location.hash);
+        }
+    </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
@@ -191,8 +196,8 @@
             <div id="adminLogin" class="card p-4 shadow-sm">
                 <label class="form-label">Ange lösenord:</label>
                 <input type="password" id="adminPass" class="form-control mb-3" placeholder="******">
-                <button onclick="checkAdmin()" class="btn btn-dark w-100">Logga in</button>
-                <p id="loginError" class="text-danger mt-2 d-none text-center">Fel lösenord!</p>
+                <button id="adminLoginButton" onclick="checkAdmin()" class="btn btn-dark w-100">Logga in</button>
+                <p id="loginError" class="text-danger mt-2 d-none text-center" role="alert"></p>
             </div>
 
             <div id="adminPanel" class="d-none">
@@ -296,7 +301,6 @@
 
     <div id="printView"></div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
 </body>
 </html>

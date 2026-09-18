@@ -1,0 +1,10 @@
+node_modules/
+public/
+.vercel/
+.superpowers/
+.private/
+.env
+.env.*
+*.backup
+*.backup.gz
+.DS_Store
