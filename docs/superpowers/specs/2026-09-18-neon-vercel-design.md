@@ -1,0 +1,15 @@
+# SÄBO-kollen: Neon and Vercel migration
+
+Approved direction: retain the existing Swedish interface and GitHub repository, move hosting from GitHub Pages to Vercel, replace Supabase with Neon PostgreSQL, protect administration on the server, and preserve all data from the downloaded paused-project backup. No Supabase project must be resumed or removed. GitHub Pages stays untouched until the new site is verified.
+
+## Application
+Static HTML, CSS and browser JavaScript remain. Vercel Node.js functions expose explicit endpoints for residence listing, report submission, admin sessions, protected report listing/statistics and residence administration. SQL is parameterized. The database connection string and admin password hash stay in server environment variables. Sessions use a signed, Secure/HttpOnly/SameSite cookie with an expiry. Mutations require same-origin JSON requests. Brute-force login protection must survive serverless instances (Postgres-backed rate limit). Escape all database content inserted into HTML, including admin lists and reports. Login, logout, expired sessions and network/database errors must have useful Swedish feedback. No raw database errors or report payloads in logs.
+
+## Data
+The backup has public.boenden (id bigint identity, created_at timestamptz, namn text) and public.rapporter (id bigint identity, created_at timestamptz, boende, prio, atgard, mapp_status, brister, fritext text). Preserve IDs, timestamps, strings/nulls, and advance sequences. Import only app tables, never Supabase roles, auth/storage internals or arbitrary executable SQL. Production data/backup/credentials stay outside git and static build output. A repeat import must refuse a non-empty target rather than overwrite or duplicate data. Verify counts and content, not just successful SQL. Known backup counts: 21 residences, 76 reports; filename date is 2026-09-08.
+
+## Delivery
+Build a static allowlist into public/ and server functions under api/. Use Node 22 and Neon driver. Provide a migration tool taking a local .backup.gz plus DATABASE_URL, dry-run metadata inspection, schema and deployment instructions, and local tests using a real Postgres-compatible test engine with synthetic data. Preserve pagination (50), residence/date filters, summary statistics and printable report export (all pages). No new framework needed. Vercel deployment and Neon creation follow after local verification; use a dedicated new database, never unrelated existing databases.
+
+## Acceptance
+Anonymous visitors can list residences and submit valid reports, but cannot read reports or change residences. Admin can login, paginate/filter/export all reports, and manage residences; tampered/expired sessions are rejected. Calendar filters use Europe/Stockholm dates including end-of-day and DST. Failed requests never show false success. Migration preserves all original app data and performs all inserts transactionally. Existing Supabase and GitHub Pages remain available for rollback until cutover.

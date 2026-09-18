@@ -1,0 +1,23 @@
+{
+  "name": "sabo-kollen",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=spec",
+    "build": "node tools/build.mjs",
+    "dev": "npm run build && node server/dev-server.mjs",
+    "migrate": "node tools/import-backup.mjs",
+    "hash-password": "node tools/hash-password.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.3.10"
+  }
+}
